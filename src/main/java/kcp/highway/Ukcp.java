@@ -496,7 +496,9 @@ public class Ukcp{
     public User user() {
         return (User) kcp.getUser();
     }
-
+    public int srtt() {
+        return kcp.getSrtt();
+    }
     protected Ukcp user(User user) {
         kcp.setUser(user);
         return this;

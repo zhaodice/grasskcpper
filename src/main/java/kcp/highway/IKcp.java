@@ -125,4 +125,6 @@ public interface IKcp {
     void setOutput(KcpOutput output);
 
     void setAckNoDelay(boolean ackNoDelay);
+
+    int getSrtt();
 }

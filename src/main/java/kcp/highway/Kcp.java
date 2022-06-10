@@ -1492,6 +1492,11 @@ public class Kcp implements IKcp {
     }
 
     @Override
+    public int getSrtt() {
+        return rxSrtt;
+    }
+
+    @Override
     public String toString() {
         return "Kcp(" +
                 "conv=" + conv +
