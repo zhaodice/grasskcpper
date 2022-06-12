@@ -95,12 +95,12 @@ public class KcpServer {
 
         bootstrap.channel(channelClass);
         bootstrap.group(group);
-        bootstrap.handler(new ChannelInitializer<Channel>() {
+        bootstrap.handler(new ChannelInitializer<>() {
             @Override
             protected void initChannel(Channel ch) {
-                ServerChannelHandler serverChannelHandler = new ServerChannelHandler(channelManager, channelConfig, iMessageExecutorPool, kcpListener,hashedWheelTimer);
+                ServerChannelHandler serverChannelHandler = new ServerChannelHandler(channelManager, channelConfig, iMessageExecutorPool, kcpListener, hashedWheelTimer);
                 ChannelPipeline cp = ch.pipeline();
-                if(channelConfig.isCrc32Check()){
+                if (channelConfig.isCrc32Check()) {
                     Crc32Encode crc32Encode = new Crc32Encode();
                     Crc32Decode crc32Decode = new Crc32Decode();
                     //这里的crc32放在eventloop网络线程处理的，以后内核有丢包可以优化到单独的一个线程处理

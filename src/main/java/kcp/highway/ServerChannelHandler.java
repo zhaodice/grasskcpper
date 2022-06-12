@@ -155,6 +155,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             msg.release();
             return;
         }
+        IMessageExecutor iMessageExecutor = iMessageExecutorPool.getIMessageExecutor();
         if (ukcp == null) {// finished handshake
             HandshakeWaiter waiter = handshakeWaitersFind(byteBuf.getLong(0));
             if (waiter == null) {
@@ -171,8 +172,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
                 }
                 //Grasscutter.getLogger().info("Established handshake to {} ,Conv convId={}", user.getRemoteAddress(), waiter.convId);
                 KcpOutput kcpOutput = new KcpOutPutImp();
-                IMessageExecutor iMessageExecutor = iMessageExecutorPool.getIMessageExecutor();
-                Ukcp newUkcp = new Ukcp(kcpOutput, kcpListener, iMessageExecutorPool.getIMessageExecutor(), channelConfig, channelManager);
+                Ukcp newUkcp = new Ukcp(kcpOutput, kcpListener, iMessageExecutor, channelConfig, channelManager);
                 newUkcp.user(user);
                 newUkcp.setConv(waiter.convId);
                 channelManager.New(msg.sender(), newUkcp, msg);
@@ -188,11 +188,13 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
                         TimeUnit.MILLISECONDS);
                 ukcp = newUkcp;
             }
-        }else{// established tunnel
-            ukcp.user().setRemoteAddress(msg.sender());
         }
-
-        ukcp.read(byteBuf);
+        // established tunnel
+        Ukcp finalUkcp = ukcp;
+        iMessageExecutor.execute(() -> {
+            finalUkcp.user().setRemoteAddress(msg.sender());
+            finalUkcp.read(byteBuf);
+        });
     }
 
 
