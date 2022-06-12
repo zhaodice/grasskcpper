@@ -154,7 +154,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
                 synchronized (channelManager) {
                     do {
                         convId = secureRandom.nextLong();
-                    } while (!channelManager.convExists(convId) && handshakeWaitersFind(convId) == null);
+                    } while (channelManager.convExists(convId) || handshakeWaitersFind(convId) != null);
                 }
                 handshakeWaitersAppend(new HandshakeWaiter(convId, user.getRemoteAddress()));
             }else{
