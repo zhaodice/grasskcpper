@@ -29,7 +29,9 @@ public class ServerConvChannelManager implements IChannelManager {
         return ukcpMap.get(conv);
     }
 
-
+    public boolean convExists(long conv){
+        return ukcpMap.containsKey(conv);
+    }
     private long getConv(DatagramPacket msg) {
         ByteBuf byteBuf = msg.content();
         return byteBuf.getLong(byteBuf.readerIndex() + convIndex);

@@ -14,7 +14,8 @@ import kcp.highway.threadPool.IMessageExecutorPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Random;
+import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -28,7 +29,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
     }
     private static final Logger logger = LoggerFactory.getLogger(ServerChannelHandler.class);
 
-    private final IChannelManager channelManager;
+    private final ServerConvChannelManager channelManager;
 
     private final ChannelConfig channelConfig;
 
@@ -38,6 +39,9 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
 
     private final HashedWheelTimer hashedWheelTimer;
     private final ConcurrentLinkedQueue<HandshakeWaiter> handshakeWaiters = new ConcurrentLinkedQueue<>();
+
+    private final SecureRandom secureRandom = new SecureRandom();
+
     public void handshakeWaitersAppend(HandshakeWaiter handshakeWaiter){
         if(handshakeWaiters.size()>10){
             handshakeWaiters.poll();
@@ -115,7 +119,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
     }
 
     public ServerChannelHandler(IChannelManager channelManager, ChannelConfig channelConfig, IMessageExecutorPool iMessageExecutorPool, KcpListener kcpListener,HashedWheelTimer hashedWheelTimer) {
-        this.channelManager = channelManager;
+        this.channelManager = (ServerConvChannelManager) channelManager;
         this.channelConfig = channelConfig;
         this.iMessageExecutorPool = iMessageExecutorPool;
         this.kcpListener = kcpListener;
@@ -146,7 +150,12 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             HandshakeWaiter waiter = handshakeWaitersFind(user.getRemoteAddress());
             long convId;
             if(waiter==null) {
-                convId = new Random().nextLong();
+                //generate unique convId
+                synchronized (channelManager) {
+                    do {
+                        convId = secureRandom.nextLong();
+                    } while (!channelManager.convExists(convId) && handshakeWaitersFind(convId) == null);
+                }
                 handshakeWaitersAppend(new HandshakeWaiter(convId, user.getRemoteAddress()));
             }else{
                 convId = waiter.convId;
