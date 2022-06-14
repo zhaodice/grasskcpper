@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import kcp.highway.threadPool.IMessageExecutor;
 import kcp.highway.threadPool.IMessageExecutorPool;
+import kcp.highway.threadPool.ITask;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -164,6 +165,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             msg.release();
             return;
         }
+        boolean newConnection = false;
         IMessageExecutor iMessageExecutor = iMessageExecutorPool.getIMessageExecutor();
         if (ukcp == null) {// finished handshake
             HandshakeWaiter waiter = handshakeWaitersFind(byteBuf.getLong(0));
@@ -185,28 +187,41 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
                 newUkcp.user(user);
                 newUkcp.setConv(waiter.convId);
                 channelManager.New(msg.sender(), newUkcp, msg);
-                iMessageExecutor.execute(() -> {
-                    try {
-                        newUkcp.getKcpListener().onConnected(newUkcp);
-                    } catch (Throwable throwable) {
-                        newUkcp.getKcpListener().handleException(throwable, newUkcp);
-                    }
-                });
                 hashedWheelTimer.newTimeout(new ScheduleTask(iMessageExecutor, newUkcp, hashedWheelTimer),
                         newUkcp.getInterval(),
                         TimeUnit.MILLISECONDS);
                 ukcp = newUkcp;
+                newConnection = true;
             }
         }
         // established tunnel
-        Ukcp finalUkcp = ukcp;
-        iMessageExecutor.execute(() -> {
-            finalUkcp.user().setRemoteAddress(msg.sender());
-            finalUkcp.read(byteBuf);
-        });
+        iMessageExecutor.execute(new UckpEventSender(newConnection, ukcp, byteBuf, msg.sender()));
     }
 
-
+    static class UckpEventSender implements ITask {
+        private final boolean newConnection;
+        private final Ukcp uckp;
+        private final ByteBuf byteBuf;
+        private final InetSocketAddress sender;
+        UckpEventSender(boolean newConnection,Ukcp ukcp,ByteBuf byteBuf,InetSocketAddress sender){
+            this.newConnection=newConnection;
+            this.uckp=ukcp;
+            this.byteBuf=byteBuf;
+            this.sender=sender;
+        }
+        @Override
+        public void execute() {
+            if(newConnection) {
+                try {
+                    uckp.getKcpListener().onConnected(uckp);
+                } catch (Throwable throwable) {
+                    uckp.getKcpListener().handleException(throwable, uckp);
+                }
+            }
+            uckp.user().setRemoteAddress(sender);
+            uckp.read(byteBuf);
+        }
+    }
     private int getSn(ByteBuf byteBuf,ChannelConfig channelConfig){
         int headerSize = 0;
         if(channelConfig.getFecAdapt()!=null){
