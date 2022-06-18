@@ -13,10 +13,8 @@ import kcp.highway.threadPool.IMessageExecutor;
 import kcp.highway.threadPool.IMessageExecutorPool;
 import kcp.highway.threadPool.ITask;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.SecureRandom;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -69,7 +67,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         return null;
     }
     // Handle handshake
-    public static void handleEnet(ByteBuf data, User user,Ukcp ukcp, long conv) {
+    public static void handleEnet(ByteBuf data, Ukcp ukcp, User user, long conv) {
         if (data == null || data.readableBytes() != 20) {
             return;
         }
@@ -82,10 +80,11 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         try{
             switch (code) {
                 case 255 -> { // Connect + Handshake
-                    sendHandshakeRsp(user,enet,conv);
+                    if(user!=null) {
+                        Ukcp.sendHandshakeRsp(user, enet, conv);
+                    }
                 }
                 case 404 -> { // Disconnect
-                    sendDisconnectPacket(user, 1,conv);
                     if(ukcp!=null) {
                         ukcp.close();
                     }
@@ -95,29 +94,6 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private static void sendHandshakeRsp(User user,int enet,long conv) throws IOException {
-        ByteBuf packet = Unpooled.buffer(20);
-        packet.writeInt(325);
-        packet.writeIntLE((int) (conv >> 32));
-        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
-        packet.writeInt(enet);
-        packet.writeInt(340870469); // constant?
-        UDPSend(user,packet);
-    }
-    public static void sendDisconnectPacket(User user, int code,long conv) throws IOException {
-        ByteBuf packet = Unpooled.buffer(20);
-        packet.writeInt(404);
-        packet.writeIntLE((int) (conv >> 32));
-        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
-        packet.writeInt(code);
-        packet.writeInt(423728276); // constant?
-        UDPSend(user,packet);
-    }
-    private static void UDPSend(User user,ByteBuf packet){
-        DatagramPacket datagramPacket = new DatagramPacket(packet,user.getRemoteAddress(), user.getLocalAddress());
-        // Send
-        user.getChannel().writeAndFlush(datagramPacket);
-    }
 
     public ServerChannelHandler(IChannelManager channelManager, ChannelConfig channelConfig, IMessageExecutorPool iMessageExecutorPool, KcpListener kcpListener,HashedWheelTimer hashedWheelTimer) {
         this.channelManager = (ServerConvChannelManager) channelManager;
@@ -130,13 +106,6 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         logger.error("", cause);
-        //SocketAddress socketAddress = ctx.channel().remoteAddress();
-        //Ukcp ukcp = clientMap.get(socketAddress);
-        //if(ukcp==null){
-        //    logger.error("exceptionCaught ukcp is not exist address"+ctx.channel().remoteAddress(),cause);
-        //    return;
-        //}
-        //ukcp.getKcpListener().handleException(cause,ukcp);
     }
 
     @Override
@@ -161,7 +130,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             }else{
                 convId = waiter.convId;
             }
-            handleEnet(byteBuf, user, ukcp, convId);
+            handleEnet(byteBuf, ukcp, user, convId);
             msg.release();
             return;
         }

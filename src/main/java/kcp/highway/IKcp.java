@@ -85,9 +85,9 @@ public interface IKcp {
 
     void setConv(long conv);
 
-    Object getUser();
+    User getUser();
 
-    void setUser(Object user);
+    void setUser(User user);
 
     int getState();
 

@@ -1,6 +1,7 @@
 package kcp.highway;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.socket.DatagramPacket;
 import kcp.highway.erasure.FecAdapt;
 import kcp.highway.erasure.IFecDecode;
 import kcp.highway.erasure.IFecEncode;
@@ -130,6 +131,35 @@ public class Ukcp{
         this.fastFlush = channelConfig.isFastFlush();
     }
 
+    public void sendDisconnectPacket(int code) {
+        long conv = getConv();
+        ByteBuf packet = Unpooled.buffer(20);
+        packet.writeInt(404);
+        packet.writeIntLE((int) (conv >> 32));
+        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
+        packet.writeInt(code);
+        packet.writeInt(423728276); // constant?
+        UDPSend(packet);
+    }
+    public static void sendHandshakeRsp(User user, int enet, long conv) {
+        ByteBuf packet = Unpooled.buffer(20);
+        packet.writeInt(325);
+        packet.writeIntLE((int) (conv >> 32));
+        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
+        packet.writeInt(enet);
+        packet.writeInt(340870469); // constant?
+        Ukcp.UDPSend(packet,user);
+    }
+
+    public void UDPSend(ByteBuf packet){
+        User user = kcp.getUser();
+        UDPSend(packet,user);
+    }
+    public static void UDPSend(ByteBuf packet,User user){
+        DatagramPacket datagramPacket = new DatagramPacket(packet,user.getRemoteAddress(), user.getLocalAddress());
+        // Send
+        user.getChannel().writeAndFlush(datagramPacket);
+    }
 
     /**
      * Receives ByteBufs.
@@ -373,11 +403,17 @@ public class Ukcp{
         return readBufferIncr;
     }
 
-
     /**
      * 主动关闭连接调用
      */
     public void close() {
+        close(true);
+    }
+
+    public void close(boolean sendDisconnectPack) {
+        if(sendDisconnectPack){
+            sendDisconnectPacket(5);
+        }
         this.iMessageExecutor.execute(() -> internalClose());
     }
 

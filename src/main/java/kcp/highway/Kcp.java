@@ -177,7 +177,7 @@ public class Kcp implements IKcp {
 
     private int ackcount;
 
-    private Object user;
+    private User user;
     /**是否快速重传 默认0关闭，可以设置2（2次ACK跨越将会直接重传）**/
     private int fastresend;
     /**是否关闭拥塞控制窗口**/
@@ -1384,12 +1384,12 @@ public class Kcp implements IKcp {
     }
 
     @Override
-    public Object getUser() {
+    public User getUser() {
         return user;
     }
 
     @Override
-    public void setUser(Object user) {
+    public void setUser(User user) {
         this.user = user;
     }
 
