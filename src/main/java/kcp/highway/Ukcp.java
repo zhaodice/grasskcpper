@@ -21,7 +21,7 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Ukcp{
+public class Ukcp {
 
     private static final InternalLogger log = InternalLoggerFactory.getInstance(Ukcp.class);
 
@@ -61,9 +61,9 @@ public class Ukcp{
 
     private final ReadTask readTask = new ReadTask(this);
 
-    private boolean controlReadBufferSize=false;
+    private boolean controlReadBufferSize = false;
 
-    private boolean controlWriteBufferSize=false;
+    private boolean controlWriteBufferSize = false;
 
 
     /**
@@ -77,7 +77,7 @@ public class Ukcp{
      *
      * @param output output for kcp
      */
-    public Ukcp(KcpOutput output, KcpListener kcpListener, IMessageExecutor iMessageExecutor,  ChannelConfig channelConfig, IChannelManager channelManager) {
+    public Ukcp(KcpOutput output, KcpListener kcpListener, IMessageExecutor iMessageExecutor, ChannelConfig channelConfig, IChannelManager channelManager) {
         this.timeoutMillis = channelConfig.getTimeoutMillis();
         this.kcp = new Kcp(channelConfig.getConv(), output);
         this.active = true;
@@ -87,32 +87,31 @@ public class Ukcp{
         this.writeBuffer = new MpscLinkedQueue<>();
         this.readBuffer = new MpscLinkedQueue<>();
 
-        if(channelConfig.getReadBufferSize()!=-1){
+        if (channelConfig.getReadBufferSize() != -1) {
             this.controlReadBufferSize = true;
-            this.readBufferIncr.set(channelConfig.getReadBufferSize()/channelConfig.getMtu());
+            this.readBufferIncr.set(channelConfig.getReadBufferSize() / channelConfig.getMtu());
         }
 
-        if(channelConfig.getWriteBufferSize()!=-1){
+        if (channelConfig.getWriteBufferSize() != -1) {
             this.controlWriteBufferSize = true;
-            this.writeBufferIncr.set(channelConfig.getWriteBufferSize()/channelConfig.getMtu());
+            this.writeBufferIncr.set(channelConfig.getWriteBufferSize() / channelConfig.getMtu());
         }
-
 
 
         int headerSize = 0;
         FecAdapt fecAdapt = channelConfig.getFecAdapt();
-        if(channelConfig.isCrc32Check()){
+        if (channelConfig.isCrc32Check()) {
             headerSize += ChannelConfig.crc32Size;
         }
 
         //init fec
         if (fecAdapt != null) {
             KcpOutput kcpOutput = kcp.getOutput();
-            fecEncode = fecAdapt.fecEncode(headerSize,channelConfig.getMtu());
+            fecEncode = fecAdapt.fecEncode(headerSize, channelConfig.getMtu());
             fecDecode = fecAdapt.fecDecode(channelConfig.getMtu());
             kcpOutput = new FecOutPut(kcpOutput, fecEncode);
             kcp.setOutput(kcpOutput);
-            headerSize+= Fec.fecHeaderSizePlus2;
+            headerSize += Fec.fecHeaderSizePlus2;
         }
 
         kcp.setReserved(headerSize);
@@ -120,8 +119,8 @@ public class Ukcp{
     }
 
 
-    private void initKcpConfig(ChannelConfig channelConfig){
-        kcp.nodelay(channelConfig.isNodelay(),channelConfig.getInterval(),channelConfig.getFastresend(),channelConfig.isNocwnd());
+    private void initKcpConfig(ChannelConfig channelConfig) {
+        kcp.nodelay(channelConfig.isNodelay(), channelConfig.getInterval(), channelConfig.getFastresend(), channelConfig.isNocwnd());
         kcp.setSndWnd(channelConfig.getSndwnd());
         kcp.setRcvWnd(channelConfig.getRcvwnd());
         kcp.setMtu(channelConfig.getMtu());
@@ -131,8 +130,27 @@ public class Ukcp{
         this.fastFlush = channelConfig.isFastFlush();
     }
 
-    public void sendDisconnectPacket(int code) {
-        long conv = getConv();
+    public static void sendHandshakeReq(User user) {
+        ByteBuf packet = Unpooled.buffer(20);
+        packet.writeInt(255);
+        packet.writeIntLE(0);
+        packet.writeIntLE(0);
+        packet.writeInt(1234567890); // constant?
+        packet.writeInt(0xffffffff); // constant?
+        UDPSend(packet, user);
+    }
+
+    public static void sendHandshakeRsp(User user, int enet, long conv) {
+        ByteBuf packet = Unpooled.buffer(20);
+        packet.writeInt(325);
+        packet.writeIntLE((int) (conv >> 32));
+        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
+        packet.writeInt(enet);
+        packet.writeInt(340870469); // constant?
+        UDPSend(packet, user);
+    }
+
+    public void sendDisconnectPacket(long conv, int code) {
         ByteBuf packet = Unpooled.buffer(20);
         packet.writeInt(404);
         packet.writeIntLE((int) (conv >> 32));
@@ -141,22 +159,14 @@ public class Ukcp{
         packet.writeInt(423728276); // constant?
         UDPSend(packet);
     }
-    public static void sendHandshakeRsp(User user, int enet, long conv) {
-        ByteBuf packet = Unpooled.buffer(20);
-        packet.writeInt(325);
-        packet.writeIntLE((int) (conv >> 32));
-        packet.writeIntLE((int) (conv & 0xFFFFFFFFL));
-        packet.writeInt(enet);
-        packet.writeInt(340870469); // constant?
-        Ukcp.UDPSend(packet,user);
+
+    public void UDPSend(ByteBuf packet) {
+        User user = kcp.getUser();
+        UDPSend(packet, user);
     }
 
-    public void UDPSend(ByteBuf packet){
-        User user = kcp.getUser();
-        UDPSend(packet,user);
-    }
-    public static void UDPSend(ByteBuf packet,User user){
-        DatagramPacket datagramPacket = new DatagramPacket(packet,user.getRemoteAddress(), user.getLocalAddress());
+    public static void UDPSend(ByteBuf packet, User user) {
+        DatagramPacket datagramPacket = new DatagramPacket(packet, user.getRemoteAddress(), user.getLocalAddress());
         // Send
         user.getChannel().writeAndFlush(datagramPacket);
     }
@@ -176,7 +186,7 @@ public class Ukcp{
     }
 
 
-    protected void input(ByteBuf data,long current) throws IOException {
+    protected void input(ByteBuf data, long current) throws IOException {
         //lastRecieveTime = System.currentTimeMillis();
         Snmp.snmp.InPkts.increment();
         Snmp.snmp.InBytes.add(data.readableBytes());
@@ -184,7 +194,7 @@ public class Ukcp{
             FecPacket fecPacket = FecPacket.newFecPacket(data);
             if (fecPacket.getFlag() == Fec.typeData) {
                 data.skipBytes(2);
-                input(data, true,current);
+                input(data, true, current);
             }
             if (fecPacket.getFlag() == Fec.typeData || fecPacket.getFlag() == Fec.typeParity) {
                 List<ByteBuf> byteBufs = fecDecode.decode(fecPacket);
@@ -192,17 +202,18 @@ public class Ukcp{
                     ByteBuf byteBuf;
                     for (int i = 0; i < byteBufs.size(); i++) {
                         byteBuf = byteBufs.get(i);
-                        input(byteBuf, false,current);
+                        input(byteBuf, false, current);
                         byteBuf.release();
                     }
                 }
             }
         } else {
-            input(data, true,current);
+            input(data, true, current);
         }
     }
-    private void input(ByteBuf data, boolean regular,long current) throws IOException {
-        int ret = kcp.input(data, regular,current);
+
+    private void input(ByteBuf data, boolean regular, long current) throws IOException {
+        int ret = kcp.input(data, regular, current);
         switch (ret) {
             case -1:
                 throw new IOException("No enough bytes of head");
@@ -235,7 +246,6 @@ public class Ukcp{
     protected boolean canRecv() {
         return kcp.canRecv();
     }
-
 
 
     protected long getLastRecieveTime() {
@@ -277,8 +287,8 @@ public class Ukcp{
         return nextTsUp;
     }
 
-    protected long flush(long current){
-        return kcp.flush(false,current);
+    protected long flush(long current) {
+        return kcp.flush(false, current);
     }
 
     /**
@@ -329,11 +339,9 @@ public class Ukcp{
     }
 
 
-
     protected boolean isStream() {
         return kcp.isStream();
     }
-
 
 
     /**
@@ -352,18 +360,18 @@ public class Ukcp{
     }
 
     protected void read(ByteBuf byteBuf) {
-        if(controlReadBufferSize){
-            int readBufferSize =readBufferIncr.getAndUpdate(operand -> {
-                if(operand==0){
+        if (controlReadBufferSize) {
+            int readBufferSize = readBufferIncr.getAndUpdate(operand -> {
+                if (operand == 0) {
                     return operand;
                 }
                 return --operand;
             });
-            if(readBufferSize==0){
+            if (readBufferSize == 0) {
                 //TODO 这里做的不对 应该丢弃队列最早的那个消息包  这样子丢弃有一定的概率会卡死 以后优化
                 //byteBuf.release();
                 ByteBuf pack = this.readBuffer.poll();
-                if(pack!=null) {
+                if (pack != null) {
                     pack.release();
                 }
                 return;
@@ -376,18 +384,19 @@ public class Ukcp{
     /**
      * 发送有序可靠消息
      * 线程安全的
+     *
      * @param byteBuf 发送后需要手动调用 {@link ByteBuf#release()}
      * @return true发送成功  false缓冲区满了
      */
     public boolean write(ByteBuf byteBuf) {
-        if(controlWriteBufferSize){
-            int bufferSize =writeBufferIncr.getAndUpdate(operand -> {
-                if(operand==0){
+        if (controlWriteBufferSize) {
+            int bufferSize = writeBufferIncr.getAndUpdate(operand -> {
+                if (operand == 0) {
                     return operand;
                 }
                 return --operand;
             });
-            if(bufferSize==0){
+            if (bufferSize == 0) {
                 //log.error("conv {} address {} writeBuffer is full",kcp.getConv(),((User)kcp.getUser()).getRemoteAddress());
                 return false;
             }
@@ -411,20 +420,20 @@ public class Ukcp{
     }
 
     public void close(boolean sendDisconnectPack) {
-        if(sendDisconnectPack){
-            sendDisconnectPacket(5);
+        if (sendDisconnectPack) {
+            sendDisconnectPacket(getConv(), 5);
         }
         this.iMessageExecutor.execute(() -> internalClose());
     }
 
     private void notifyReadEvent() {
-        if(readProcessing.compareAndSet(false,true)){
+        if (readProcessing.compareAndSet(false, true)) {
             this.iMessageExecutor.execute(this.readTask);
         }
     }
 
     protected void notifyWriteEvent() {
-        if(writeProcessing.compareAndSet(false,true)){
+        if (writeProcessing.compareAndSet(false, true)) {
             this.iMessageExecutor.execute(this.writeTask);
         }
     }
@@ -457,7 +466,7 @@ public class Ukcp{
 
 
     void internalClose() {
-        if(!active){
+        if (!active) {
             return;
         }
         this.active = false;
@@ -465,7 +474,7 @@ public class Ukcp{
         kcpListener.handleClose(this);
         //关闭之前尽量把消息都发出去
         notifyWriteEvent();
-        kcp.flush(false,System.currentTimeMillis());
+        kcp.flush(false, System.currentTimeMillis());
         //连接删除
         channelManager.del(this);
         release();
@@ -532,9 +541,11 @@ public class Ukcp{
     public User user() {
         return (User) kcp.getUser();
     }
+
     public int srtt() {
         return kcp.getSrtt();
     }
+
     protected Ukcp user(User user) {
         kcp.setUser(user);
         return this;

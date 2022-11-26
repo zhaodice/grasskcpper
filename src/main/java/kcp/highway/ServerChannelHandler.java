@@ -1,6 +1,5 @@
 package kcp.highway;
 
-import io.netty.buffer.Unpooled;
 import kcp.highway.erasure.fec.Fec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -23,9 +22,10 @@ import java.util.concurrent.TimeUnit;
  * 2018/9/20.
  */
 public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
-    record HandshakeWaiter(long convId, InetSocketAddress address){
+    record HandshakeWaiter(long convId, InetSocketAddress address) {
 
     }
+
     private static final Logger logger = LoggerFactory.getLogger(ServerChannelHandler.class);
 
     private final ServerConvChannelManager channelManager;
@@ -41,16 +41,18 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public void handshakeWaitersAppend(HandshakeWaiter handshakeWaiter){
-        if(handshakeWaiters.size()>10){
+    public void handshakeWaitersAppend(HandshakeWaiter handshakeWaiter) {
+        if (handshakeWaiters.size() > 10) {
             handshakeWaiters.poll();
         }
         handshakeWaiters.add(handshakeWaiter);
     }
-    public void handshakeWaitersRemove(HandshakeWaiter handshakeWaiter){
+
+    public void handshakeWaitersRemove(HandshakeWaiter handshakeWaiter) {
         handshakeWaiters.remove(handshakeWaiter);
     }
-    public HandshakeWaiter handshakeWaitersFind(long conv){
+
+    public HandshakeWaiter handshakeWaitersFind(long conv) {
         for (HandshakeWaiter waiter : handshakeWaiters) {
             if (waiter.convId == conv) {
                 return waiter;
@@ -58,7 +60,8 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         }
         return null;
     }
-    public HandshakeWaiter handshakeWaitersFind(InetSocketAddress address){
+
+    public HandshakeWaiter handshakeWaitersFind(InetSocketAddress address) {
         for (HandshakeWaiter waiter : handshakeWaiters) {
             if (waiter.address.equals(address)) {
                 return waiter;
@@ -66,36 +69,34 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         }
         return null;
     }
+
     // Handle handshake
-    public static void handleEnet(ByteBuf data, Ukcp ukcp, User user, long conv) {
-        if (data == null || data.readableBytes() != 20) {
-            return;
-        }
+    public void handleEnet(ByteBuf data, Ukcp ukcp, User user, long conv) {
         // Get
         int code = data.readInt();
-        data.readUnsignedInt(); // Empty
-        data.readUnsignedInt(); // Empty
+        data.readUnsignedInt();
+        data.readUnsignedInt();
         int enet = data.readInt();
         data.readUnsignedInt();
-        try{
+        try {
             switch (code) {
                 case 255 -> { // Connect + Handshake
-                    if(user!=null) {
+                    if (user != null) {
                         Ukcp.sendHandshakeRsp(user, enet, conv);
                     }
                 }
                 case 404 -> { // Disconnect
-                    if(ukcp!=null) {
+                    if (ukcp != null) {
                         ukcp.close();
                     }
                 }
             }
-        }catch (Throwable ignore){
+        } catch (Throwable ignore) {
         }
     }
 
 
-    public ServerChannelHandler(IChannelManager channelManager, ChannelConfig channelConfig, IMessageExecutorPool iMessageExecutorPool, KcpListener kcpListener,HashedWheelTimer hashedWheelTimer) {
+    public ServerChannelHandler(IChannelManager channelManager, ChannelConfig channelConfig, IMessageExecutorPool iMessageExecutorPool, KcpListener kcpListener, HashedWheelTimer hashedWheelTimer) {
         this.channelManager = (ServerConvChannelManager) channelManager;
         this.channelConfig = channelConfig;
         this.iMessageExecutorPool = iMessageExecutorPool;
@@ -115,11 +116,11 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         ByteBuf byteBuf = msg.content();
         User user = new User(ctx.channel(), msg.sender(), msg.recipient());
         Ukcp ukcp = channelManager.get(msg);
-        if(byteBuf.readableBytes() == 20){
+        if (byteBuf.readableBytes() == 20) {
             // send handshake
             HandshakeWaiter waiter = handshakeWaitersFind(user.getRemoteAddress());
             long convId;
-            if(waiter==null) {
+            if (waiter == null) {
                 //generate unique convId
                 synchronized (channelManager) {
                     do {
@@ -127,7 +128,7 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
                     } while (channelManager.convExists(convId) || handshakeWaitersFind(convId) != null);
                 }
                 handshakeWaitersAppend(new HandshakeWaiter(convId, user.getRemoteAddress()));
-            }else{
+            } else {
                 convId = waiter.convId;
             }
             handleEnet(byteBuf, ukcp, user, convId);
@@ -172,15 +173,17 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
         private final Ukcp uckp;
         private final ByteBuf byteBuf;
         private final InetSocketAddress sender;
-        UckpEventSender(boolean newConnection,Ukcp ukcp,ByteBuf byteBuf,InetSocketAddress sender){
-            this.newConnection=newConnection;
-            this.uckp=ukcp;
-            this.byteBuf=byteBuf;
-            this.sender=sender;
+
+        UckpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
+            this.newConnection = newConnection;
+            this.uckp = ukcp;
+            this.byteBuf = byteBuf;
+            this.sender = sender;
         }
+
         @Override
         public void execute() {
-            if(newConnection) {
+            if (newConnection) {
                 try {
                     uckp.getKcpListener().onConnected(uckp);
                 } catch (Throwable throwable) {
@@ -191,12 +194,13 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             uckp.read(byteBuf);
         }
     }
-    private int getSn(ByteBuf byteBuf,ChannelConfig channelConfig){
+
+    private int getSn(ByteBuf byteBuf, ChannelConfig channelConfig) {
         int headerSize = 0;
-        if(channelConfig.getFecAdapt()!=null){
-            headerSize+= Fec.fecHeaderSizePlus2;
+        if (channelConfig.getFecAdapt() != null) {
+            headerSize += Fec.fecHeaderSizePlus2;
         }
-        return byteBuf.getIntLE(byteBuf.readerIndex()+Kcp.IKCP_SN_OFFSET+headerSize);
+        return byteBuf.getIntLE(byteBuf.readerIndex() + Kcp.IKCP_SN_OFFSET + headerSize);
     }
 
 }
