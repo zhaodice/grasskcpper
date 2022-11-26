@@ -165,16 +165,16 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
             }
         }
         // established tunnel
-        iMessageExecutor.execute(new UckpEventSender(newConnection, ukcp, byteBuf, msg.sender()));
+        iMessageExecutor.execute(new UkcpEventSender(newConnection, ukcp, byteBuf, msg.sender()));
     }
 
-    static class UckpEventSender implements ITask {
+    private static class UkcpEventSender implements ITask {
         private final boolean newConnection;
         private final Ukcp uckp;
         private final ByteBuf byteBuf;
         private final InetSocketAddress sender;
 
-        UckpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
+        UkcpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
             this.newConnection = newConnection;
             this.uckp = ukcp;
             this.byteBuf = byteBuf;

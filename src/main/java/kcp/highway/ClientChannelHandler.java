@@ -5,6 +5,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.socket.DatagramPacket;
 import io.netty.util.HashedWheelTimer;
+import kcp.highway.erasure.fec.Fec;
 import kcp.highway.threadPool.IMessageExecutor;
 import kcp.highway.threadPool.IMessageExecutorPool;
 import kcp.highway.threadPool.ITask;
@@ -34,9 +35,10 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
     public long handleEnet(ByteBuf data, Ukcp ukcp) {
         // Get
         int code = data.readInt();
-        long conv = data.readUnsignedIntLE() << 32;
-        conv |= data.readUnsignedIntLE();
-        int enet = data.readInt();
+        long a = data.readUnsignedIntLE();
+        long b = data.readUnsignedIntLE();
+        long conv = a << 32 | b;
+        data.readInt();
         data.readUnsignedInt();
         try {
             switch (code) {
@@ -75,6 +77,12 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
         ByteBuf byteBuf = msg.content();
         User user = new User(ctx.channel(), msg.sender(), msg.recipient());
         Ukcp ukcp = channelManager.get(msg);
+        if (ukcp == null) {
+            logger.info("ukcp = null");
+        } else {
+            logger.info(ukcp.toString());
+        }
+        logger.info(byteBuf.toString());
         IMessageExecutor iMessageExecutor = iMessageExecutorPool.getIMessageExecutor();
         if (byteBuf.readableBytes() == 20) {
             // send handshake
@@ -88,24 +96,28 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
                 hashedWheelTimer.newTimeout(new ScheduleTask(iMessageExecutor, newUkcp, hashedWheelTimer),
                         newUkcp.getInterval(),
                         TimeUnit.MILLISECONDS);
-                iMessageExecutor.execute(new UckpEventSender(true, newUkcp, byteBuf, msg.sender()));
-                msg.release();
+                iMessageExecutor.execute(new UkcpEventSender(true, newUkcp, byteBuf, msg.sender()));
             }
             return;
         }
-
-        iMessageExecutor.execute(new UckpEventSender(false, ukcp, byteBuf, msg.sender()));
+        int sn = getSn(byteBuf, channelConfig);
+        if (sn != 0) {
+            //Grasscutter.getLogger().warn("Establishing handshake to {} failure, SN!=0", user.getRemoteAddress());
+            msg.release();
+            return;
+        }
+        iMessageExecutor.execute(new UkcpEventSender(false, ukcp, byteBuf, msg.sender()));
     }
 
-    static class UckpEventSender implements ITask {
+    static class UkcpEventSender implements ITask {
         private final boolean newConnection;
-        private final Ukcp uckp;
+        private final Ukcp ukcp;
         private final ByteBuf byteBuf;
         private final InetSocketAddress sender;
 
-        UckpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
+        UkcpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
             this.newConnection = newConnection;
-            this.uckp = ukcp;
+            this.ukcp = ukcp;
             this.byteBuf = byteBuf;
             this.sender = sender;
         }
@@ -114,14 +126,21 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
         public void execute() {
             if (newConnection) {
                 try {
-                    uckp.getKcpListener().onConnected(uckp);
+                    ukcp.getKcpListener().onConnected(ukcp);
                 } catch (Throwable throwable) {
-                    uckp.getKcpListener().handleException(throwable, uckp);
+                    ukcp.getKcpListener().handleException(throwable, ukcp);
                 }
                 return;
             }
-            uckp.user().setRemoteAddress(sender);
-            uckp.read(byteBuf);
+            ukcp.read(byteBuf);
         }
+    }
+
+    private int getSn(ByteBuf byteBuf, ChannelConfig channelConfig) {
+        int headerSize = 0;
+        if (channelConfig.getFecAdapt() != null) {
+            headerSize += Fec.fecHeaderSizePlus2;
+        }
+        return byteBuf.getIntLE(byteBuf.readerIndex() + Kcp.IKCP_SN_OFFSET + headerSize);
     }
 }

@@ -302,18 +302,10 @@ public class Kcp implements IKcp {
         int dataSize = seg.data == null ? 0 : seg.data.readableBytes();
         buf.writeIntLE(dataSize);
         switch (seg.ackMaskSize) {
-            case 8:
-                buf.writeByte((int) seg.ackMask);
-                break;
-            case 16:
-                buf.writeShortLE((int) seg.ackMask);
-                break;
-            case 32:
-                buf.writeIntLE((int) seg.ackMask);
-                break;
-            case 64:
-                buf.writeLongLE(seg.ackMask);
-                break;
+            case 8 -> buf.writeByte((int) seg.ackMask);
+            case 16 -> buf.writeShortLE((int) seg.ackMask);
+            case 32 -> buf.writeIntLE((int) seg.ackMask);
+            case 64 -> buf.writeLongLE(seg.ackMask);
         }
         Snmp.snmp.OutSegs.increment();
         return buf.writerIndex() - offset;
@@ -778,9 +770,10 @@ public class Kcp implements IKcp {
     @Override
     public int input(ByteBuf data, boolean regular, long current) {
         long oldSndUna = sndUna;
-        if (data == null | data.readableBytes() < IKCP_OVERHEAD) {
-            return -1;
-        }
+        if (data == null) return -1;
+
+        if (data.readableBytes() < IKCP_OVERHEAD) return -1;
+
         if (log.isDebugEnabled()) {
             log.debug("{} [RI] {} bytes", this, data.readableBytes());
         }
