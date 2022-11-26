@@ -77,12 +77,6 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
         ByteBuf byteBuf = msg.content();
         User user = new User(ctx.channel(), msg.sender(), msg.recipient());
         Ukcp ukcp = channelManager.get(msg);
-        if (ukcp == null) {
-            logger.info("ukcp = null");
-        } else {
-            logger.info(ukcp.toString());
-        }
-        logger.info(byteBuf.toString());
         IMessageExecutor iMessageExecutor = iMessageExecutorPool.getIMessageExecutor();
         if (byteBuf.readableBytes() == 20) {
             // send handshake
