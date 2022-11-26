@@ -74,8 +74,8 @@ public class ServerChannelHandler extends ChannelInboundHandlerAdapter {
     public void handleEnet(ByteBuf data, Ukcp ukcp, User user, long conv) {
         // Get
         int code = data.readInt();
-        data.readUnsignedInt();
-        data.readUnsignedInt();
+        data.readUnsignedIntLE();
+        data.readUnsignedIntLE();
         int enet = data.readInt();
         data.readUnsignedInt();
         try {

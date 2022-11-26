@@ -34,8 +34,8 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
     public long handleEnet(ByteBuf data, Ukcp ukcp) {
         // Get
         int code = data.readInt();
-        long conv = (long) data.readIntLE() << 31;
-        conv |= data.readIntLE();
+        long conv = data.readUnsignedIntLE() << 32;
+        conv |= data.readUnsignedIntLE();
         int enet = data.readInt();
         data.readUnsignedInt();
         try {
@@ -89,6 +89,7 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
                         newUkcp.getInterval(),
                         TimeUnit.MILLISECONDS);
                 iMessageExecutor.execute(new UckpEventSender(true, newUkcp, byteBuf, msg.sender()));
+                msg.release();
             }
             return;
         }
@@ -117,6 +118,7 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
                 } catch (Throwable throwable) {
                     uckp.getKcpListener().handleException(throwable, uckp);
                 }
+                return;
             }
             uckp.user().setRemoteAddress(sender);
             uckp.read(byteBuf);
