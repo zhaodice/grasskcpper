@@ -82,6 +82,12 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
             // send handshake
             long convId = handleEnet(byteBuf, ukcp);
             if (convId != 0) {
+                int sn = getSn(byteBuf, channelConfig);
+                if (sn != 0) {
+                    //Grasscutter.getLogger().warn("Establishing handshake to {} failure, SN!=0", user.getRemoteAddress());
+                    msg.release();
+                    return;
+                }
                 KcpOutput kcpOutput = new KcpOutPutImp();
                 Ukcp newUkcp = new Ukcp(kcpOutput, kcpListener, iMessageExecutor, channelConfig, channelManager);
                 newUkcp.user(user);
@@ -94,12 +100,6 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
             }
             return;
         }
-        int sn = getSn(byteBuf, channelConfig);
-        if (sn != 0) {
-            //Grasscutter.getLogger().warn("Establishing handshake to {} failure, SN!=0", user.getRemoteAddress());
-            msg.release();
-            return;
-        }
         iMessageExecutor.execute(new UkcpEventSender(false, ukcp, byteBuf, msg.sender()));
     }
 
@@ -107,13 +107,11 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
         private final boolean newConnection;
         private final Ukcp ukcp;
         private final ByteBuf byteBuf;
-        private final InetSocketAddress sender;
 
         UkcpEventSender(boolean newConnection, Ukcp ukcp, ByteBuf byteBuf, InetSocketAddress sender) {
             this.newConnection = newConnection;
             this.ukcp = ukcp;
             this.byteBuf = byteBuf;
-            this.sender = sender;
         }
 
         @Override
