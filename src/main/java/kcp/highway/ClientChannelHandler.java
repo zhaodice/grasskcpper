@@ -82,12 +82,6 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
             // send handshake
             long convId = handleEnet(byteBuf, ukcp);
             if (convId != 0) {
-                int sn = getSn(byteBuf, channelConfig);
-                if (sn != 0) {
-                    //Grasscutter.getLogger().warn("Establishing handshake to {} failure, SN!=0", user.getRemoteAddress());
-                    msg.release();
-                    return;
-                }
                 KcpOutput kcpOutput = new KcpOutPutImp();
                 Ukcp newUkcp = new Ukcp(kcpOutput, kcpListener, iMessageExecutor, channelConfig, channelManager);
                 newUkcp.user(user);
@@ -126,13 +120,5 @@ public class ClientChannelHandler extends ChannelInboundHandlerAdapter {
             }
             ukcp.read(byteBuf);
         }
-    }
-
-    private int getSn(ByteBuf byteBuf, ChannelConfig channelConfig) {
-        int headerSize = 0;
-        if (channelConfig.getFecAdapt() != null) {
-            headerSize += Fec.fecHeaderSizePlus2;
-        }
-        return byteBuf.getIntLE(byteBuf.readerIndex() + Kcp.IKCP_SN_OFFSET + headerSize);
     }
 }
